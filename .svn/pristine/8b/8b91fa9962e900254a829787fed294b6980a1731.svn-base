@@ -1,0 +1,28 @@
+class A {
+	
+	toto : integer;
+
+	function f() : float {
+		a : string;
+		//a = "toto";
+		return 0;
+		a = 2+5;
+	}
+
+	function test(a : integer, c : character) : float {
+		b : integer;
+		a : integer;
+		//c = 'b';
+		string tab[10];
+		float tab2[20];
+		//tab[9] = tab2[5];
+		//a = f();
+	}
+	
+	function mon_test(a : string) : integer {
+		a = 9;
+	}
+	
+}
+
+

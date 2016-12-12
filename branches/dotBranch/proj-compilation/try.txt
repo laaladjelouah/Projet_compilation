@@ -1,0 +1,30 @@
+class A {
+	function test(a : integer) : float {
+		b : integer;
+		a : integer;
+		b = 3*a+2.3+4-1;	
+	}
+	
+	function test3() : character {
+		k : float;
+		i : integer;
+	}
+	
+	function test3(a:integer) : float {
+		y : float;		
+		//a = y++;
+	}
+	
+	function test3(b:boolean) : string {
+		return true;
+	}
+	
+	function test4(b:character) : integer {
+		return true;
+		//test3();
+	}
+	
+	
+}
+
+

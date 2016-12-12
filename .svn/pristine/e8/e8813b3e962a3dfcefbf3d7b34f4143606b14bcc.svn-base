@@ -1,0 +1,507 @@
+import java_cup.runtime.*;
+import java.util.*;
+import java.io.*;
+import types.*;
+import expressions.*;
+import instructions.*;
+import semantic.*;
+
+parser code 
+{:
+		
+		public void syntax_error(Symbol cur_token){
+			int line = cur_token.left+1;
+			int column = cur_token.right+1;
+			
+			System.err.print("Syntax error at line "+line+", column "+column+", ");
+			if(cur_token.value != null){
+				System.err.println("before the character or keyword : " +cur_token.value);
+			}
+		}
+		
+		public void report_fatal_error(String s, Object o) { }
+	
+		public void print_variable_error(String s) {
+			System.err.println(s);
+		}
+
+:}
+
+action code
+{:
+		
+		Table table = new Table();	
+		Table funcTable = new Table();
+		HashMap<String,List<Type>> func_map = new HashMap<String,List<Type>>();
+		
+		public void add_function(String s, Type t) {
+			List<Type> list = func_map.get(s);
+			if (list == null) {
+				List<Type> tmp = new ArrayList<Type>();
+				tmp.add(t);
+				func_map.put(s,tmp);
+			}
+			else 
+				list.add(t);			
+		}
+		
+		public List<Type> get_list(String s) {
+			List<Type> list = func_map.get(s);
+			return list;
+		}
+			
+		public Type find_function(Type type, List<Type> list) {
+			if (type == null) {
+				for (Type t : list) {							 
+					if (t.getRight() == null) {
+						return (Type) t.getLeft();
+					}
+				}		
+			}
+			else {
+				for (Type t : list) {							 
+					if (type.isDiff(t.getRight()) == true){
+						return (Type) t.getLeft();
+					}	
+				}
+			}
+			return null;
+		}	
+						
+		public Type expressionToType(Expression e) {
+			Type res = null;
+			if (e instanceof IDExpression) {
+				IDExpression ide = (IDExpression) e;
+				res = table.get(ide.getNameVar());
+			}
+			if (e instanceof IntegerExpression) {
+				res = new IntType();
+			}
+			if (e instanceof TrueExpression || e instanceof FalseExpression) {
+				res = new BooleanType();
+			}
+			if (e instanceof CharExpression) {
+				res = new CharType();
+			}
+			if (e instanceof FloatExpression) {
+				res = new FloatType();
+			}
+			if (e instanceof StringExpression) {
+				res = new StringType();
+			}
+			if (e instanceof SuccExpression) {
+				res = new ProdType(expressionToType(e.getLeft()),expressionToType(e.getRight()));
+			}
+			return res;	
+		}
+	
+:}	
+	
+terminal LPAR, RPAR, LACC, RACC, LCRO, RCRO, CHAPEAU, INTEGER, FLOAT, STRING, BOOL, CHAR, SEMIC, PLUS, MULT, OF;
+terminal TRUE, FALSE, NULL, STRUCT, IF, ELSE, WHILE, FOREACH, REPEAT, FCT, PROCEDURE,RETURN;
+terminal MINUS, DIV, MOD, LESS, GREAT, EQUAL, DIFF, LE, GE;
+terminal IN, CLASS; 
+terminal AND_OP, OR_OP,NOT, AFF, TYPE, COLON, POINT, COMMA; 
+
+terminal Float REAL;
+terminal Integer NB;
+terminal String LIST;
+terminal String ID, STRING_LITERAL, LETTER;
+
+non terminal translation_unit, list_assignment, boolean_list;
+non terminal int_list, real_list, id_list;
+non terminal procedure_definition;
+non terminal string_list; 
+non terminal foreach_instruction; 
+non terminal char_list;
+
+non terminal Type simple_type_specifier, struct_specifier, type_specifier, pointer_type, struct_memb, struct_membs;
+non terminal Type arg,arg_list;
+non terminal Expression primary_expression, comparison_expression, logical_expression, expression, arithmetic_expression;
+non terminal Expression constant, boolean, cond, declarations, var, func_call;
+non terminal Instruction instruction, instr_block, instructions, simple_declaration;
+non terminal AbstractTree function_definition, axiom, class_definition;
+
+precedence left COMMA;
+precedence left ELSE;
+precedence left AND_OP;
+precedence left OR_OP;
+precedence left LESS, GREAT, LE, GE, EQUAL, DIFF;
+precedence left	MINUS,PLUS;
+precedence left MULT, DIV, MOD;
+precedence left	NOT;
+precedence left POINT;
+
+start with translation_unit;
+
+instructions
+							::=	 	instructions:i1 instruction:i2
+									{:Instruction in = new Instruction(i1,i2, EnumTag.INSTRUCTION);
+										//in.toDot("inExpr.dot");
+										RESULT = in;
+										
+										:}
+							|		instruction:i
+									{: RESULT = new Instruction(i, null, EnumTag.INSTRUCTION); :}							
+							;
+
+cond 
+							::=		LPAR expression:e RPAR
+									{: RESULT = e; :}
+							;
+
+instruction 				
+							::=		IF cond:c instr_block:i
+									{: RESULT = new IfInstruction(c,i); :}
+							|		IF cond:c instr_block:i1 ELSE instr_block:i2
+									{: RESULT = new IfInstruction(c,new IfElseInstruction(i1,i2)); :}
+							|		WHILE cond:c instr_block:i
+									{: RESULT = new WhileInstruction(c,i); :}
+							|		foreach_instruction
+							|		REPEAT instr_block:i WHILE cond:c
+									{: RepeatInstruction res = new RepeatInstruction(i,c); System.out.println(res.toString()); RESULT = new RepeatInstruction(i,c); :} 
+							|		RETURN expression:e SEMIC
+									{: RESULT = new ReturnInstruction(e); :}	
+							|		RETURN SEMIC
+									{: RESULT = new ReturnInstruction(null); :}		
+							|		var:v AFF expression:e SEMIC
+									{: 
+										Type tmp = expressionToType(e);
+										if (v instanceof IDExpression) {
+											IDExpression ide = (IDExpression) v;
+											Type t1 = table.get(ide.getNameVar());					
+											if (t1 != null) {
+												if (e instanceof FuncCallExpression) {
+													FuncCallExpression fce = (FuncCallExpression) e;
+													Type ret = fce.getType();
+													if (ret.isDiff(t1) == false) 
+														System.err.println("Bad assignment");
+												}
+												else {
+													TypeDiff dif = t1.diff(tmp);
+													if (dif != null && dif.getRight() != null) {
+														System.err.println("Bad assignment : got " 
+														+ dif.getRight().toString() + ", expected : " 
+														+ dif.getLeft().toString());
+													}
+												}	
+											}
+										}
+										AssignmentInstruction as = new AssignmentInstruction(v,e);
+										//as.toDot("orExpr.dot");
+										RESULT = as; :}
+							|		var SEMIC
+							|		simple_declaration:s
+									{: RESULT = s; :}
+							;					
+
+var	
+							::=		ID:id 
+									{: Type t = table.get(id);
+									   if (t == null)	
+									   		System.err.println("Variable " + id + " has not been declared !");	
+									   
+									RESULT = new IDExpression(id); 
+									:}
+							|		func_call:f
+									{: RESULT = f; :}
+							;
+
+instr_block
+							::=		LACC {: table.push(); :} instructions:i 
+									{: RESULT = i; :}
+									RACC 
+									{: table.pop(); :}
+							|		LACC RACC		
+							; 	
+
+foreach_instruction					
+							::=		FOREACH ID IN ID instr_block 
+							|		FOREACH ID IN LCRO list_assignment RCRO instr_block
+							;
+				
+list_assignment
+							::=		int_list
+							|		real_list
+							|		char_list
+							|		string_list
+							|		boolean_list
+							;
+
+id_list 			
+							::=		ID
+							|		id_list COMMA ID
+							;
+
+int_list 			
+							::=		NB
+							|		int_list COMMA NB
+							;
+	
+real_list 			
+							::=		REAL
+							|		real_list COMMA REAL
+							;									
+
+char_list 			
+							::=		LETTER
+							|		char_list COMMA LETTER
+							;									
+
+string_list 			
+							::=		STRING_LITERAL
+							|		string_list COMMA STRING_LITERAL
+							;	
+
+boolean_list 			
+							::=		boolean
+							|		boolean_list COMMA boolean
+							;	
+																					
+simple_declaration          
+							::=		ID:id COLON type_specifier:t SEMIC 	
+									{:  RESULT = new DeclarationInstruction(new IDExpression(id),t );
+									    table.add(id,t); 
+									 :} 					
+							;
+
+struct_memb
+							::= 	ID:id COLON type_specifier:t SEMIC
+									{: RESULT = new ProdType(new NameType(id),t); :} 
+							;
+
+struct_membs 
+							::=		struct_membs:d struct_memb:s
+									{: RESULT = new ProdType(d,s); :}
+							|		struct_memb:s
+									{: RESULT = s; :}										
+							;
+
+struct_specifier 
+							::=    	STRUCT LACC struct_membs:d RACC 	
+									{: RESULT = new StructType(d); :}
+							;
+
+type_specifier
+							::=     simple_type_specifier:s 
+									{: RESULT = s; :}
+							| 		struct_specifier:ss
+									{: RESULT = ss; :}
+							|		LIST OF type_specifier:t
+									{: RESULT = new ListType(t); :}
+							;
+
+pointer_type
+							::= 	CHAPEAU type_specifier:t 
+									{: RESULT = new PointerType(t); :}
+							;
+
+simple_type_specifier 
+							::=     CHAR    {: RESULT = new CharType(); :}
+							| 		INTEGER {: RESULT = new IntType(); :}
+							| 		FLOAT   {: RESULT = new FloatType(); :}
+							| 		BOOL    {: RESULT = new BooleanType(); :}
+							| 		STRING  {: RESULT = new StringType(); :}
+							|		pointer_type:p {: RESULT = p; :}							
+							;
+
+expression			
+							::= 	logical_expression:e 
+									{: RESULT = e; :}
+							|		comparison_expression:e
+									{: RESULT = e; :} 
+							|		arithmetic_expression:e
+									{: RESULT = e; :}
+							| 		cond
+							| 		var:v
+									{: RESULT = v; :}
+							|		primary_expression:e
+									{: RESULT = e; :}
+							|		constant:c
+									{: RESULT = c; :}
+							| 		expression:e1 COMMA expression:e2
+									{: SuccExpression e = new SuccExpression(e1,e2); 
+									   RESULT = e;
+									:}
+							;
+
+comparison_expression
+							::=		expression:e1 LE expression:e2
+									{: RESULT = new LEExpression(e1,e2); :}
+							|		expression:e1 LESS expression:e2
+									{: RESULT = new LessExpression(e1,e2); :}
+							|		expression:e1 GE expression:e2
+									{: RESULT = new GEExpression(e1,e2); :}
+							|		expression:e1 GREAT expression:e2
+									{: RESULT = new GreatExpression(e1,e2); :}
+							|		expression:e1 EQUAL expression:e2
+									{: RESULT = new EqExpression(e1,e2); :}
+							|		expression:e1 DIFF expression:e2	
+									{: RESULT = new DiffExpression(e1,e2); :}
+							;
+							
+logical_expression
+							::=		expression:e1 OR_OP expression:e2
+									{: OrExpression or_expr = new OrExpression(e1,e2,null); 
+									   //or_expr.toDot("dotFiles/orExpr.dot");
+									   RESULT =  or_expr; :}
+							|		expression:e1 AND_OP expression:e2
+									{: RESULT = new AndExpression(e1,e2, null); :}
+							|		NOT expression:e
+									{: RESULT = new NotExpression(e,null); :}				
+							;
+							
+arithmetic_expression	
+							::=		expression:e1 PLUS expression:e2
+									{: RESULT = new AddExpression(e1,e2); :}
+							|		expression:e1 MINUS expression:e2
+									{: RESULT = new MinusExpression(e1,e2); :}
+							|		expression:e1 DIV expression:e2
+									{: RESULT = new DivExpression(e1,e2); :}
+							|		expression:e1 MULT expression:e2
+									{: RESULT = new MultExpression(e1,e2); :}
+							|		expression:e1 MOD expression:e2	
+									{: RESULT = new ModExpression(e1,e2); :}
+							|		MINUS expression:e
+									{: RESULT = new UnaryMinusExpression(e); :}		
+							;						
+
+boolean
+							::= 	TRUE
+									{: RESULT = new TrueExpression(); :}
+							|		FALSE
+									{: RESULT = new FalseExpression(); :}
+							;
+
+constant
+							::= 	boolean:b
+									{: RESULT = b; :} 
+							|		NULL
+									{: RESULT = new NullExpression(); :}
+							;					
+																							
+primary_expression			
+							::=		NB:nb
+									{: RESULT = new IntegerExpression(nb); :}
+							|		REAL:r
+									{: RESULT = new FloatExpression(r); :}
+							|		LETTER:l
+									{: 
+									RESULT = new CharExpression(l);
+									 :}
+							|		STRING_LITERAL:s
+									{:
+									StringExpression ss = new StringExpression(s);
+									System.out.println(ss.getValue()); 
+									RESULT = new StringExpression(s); :}		 		
+							;	
+							
+func_call 
+							::=		ID:id LPAR expression:e RPAR
+									{: 
+										List<Type> tmp = func_map.get(id);
+										if (tmp == null)
+											System.err.println("Function doesn't exist");
+										else {
+											Type t = expressionToType(e);
+											Type t2 = find_function(t,tmp);	
+											if (t2 == null) {
+												System.err.println("No matching function ici");
+											}
+											else {
+												FuncCallExpression fce = new FuncCallExpression(e,t2);
+												RESULT = fce;
+											}
+										}
+									:}   
+							|		ID:id LPAR RPAR 
+									{:
+										List<Type> tmp = func_map.get(id);
+										if (tmp == null)
+											System.err.println("Function doesn't exist");
+										else {
+											Type t2 = find_function(null,tmp);	
+											if (t2 == null) {
+												System.err.println("No matching function làbas");
+											}
+											else {
+												FuncCallExpression fce = new FuncCallExpression(null,t2);
+												RESULT = fce;
+											}
+										}		
+									:}
+							;
+
+function_definition
+							::=		FCT ID:id LPAR
+									{: table.push(); :}
+									arg_list:a RPAR COLON type_specifier:t 
+									{:
+										FuncType tmp = new FuncType(t,a, id);
+									  	add_function(id,tmp);
+									    RESULT = tmp;		
+									 :}
+									LACC instructions:i1 {:
+										FuncType tmp = new FuncType(t,a, id);
+										RESULT = new AbstractTree(EnumTag.FUNCTIONINSTRUCTION,tmp, i1);:} RACC
+									{:	table.pop(); :}
+							|		FCT ID:id LPAR RPAR COLON simple_type_specifier:t instr_block
+									{:
+										FuncType tmp = new FuncType(t,null, id);
+										//tmp.toDot("funcType.dot");
+										add_function(id,tmp);
+										RESULT = tmp;	
+									:}
+							;
+					
+procedure_definition
+							::=		PROCEDURE ID:id LPAR
+									{: table.push(); :}
+									arg_list:a RPAR
+									{:
+										FuncType tmp = new FuncType(null,a, id);
+										add_function(id,tmp);
+										RESULT = tmp;
+									:}
+									 LACC instructions RACC
+									{: table.pop(); :}
+							|		PROCEDURE ID LPAR RPAR instr_block							
+							;
+
+arg_list 			
+							::= 	arg:a
+									{: RESULT = a; :}
+							|		arg_list:al COMMA arg:a
+									{: RESULT = new ProdType(al,a); :}
+							;	
+							
+arg
+							::=		ID:id COLON type_specifier:t
+									{: 
+										RESULT = new NameType(id);
+										table.add(id,t); 
+									:}
+							;	
+							
+							
+class_definition
+                            ::=     CLASS ID:id LACC axiom:a RACC {: Type t = new Type();
+									RESULT = new AbstractTree(EnumTag.CLASS, new NameType(id), a);   :}                                                 
+                            ;	
+                            						
+translation_unit  			::=     class_definition:c {: c.toDot("class.dot"); RESULT = c; :}
+                            |       axiom:a {: RESULT = a;:}  
+                            ;
+axiom 
+							::=		
+							|		axiom:a
+									{: funcTable.push(); :}
+									function_definition:f {:
+									AbstractTree class_body = new AbstractTree(EnumTag.CLASS_BODY, a, f); 
+									//class_body.toDot("funcType2.dot");
+									RESULT = class_body;:}
+							|		axiom
+									{: funcTable.push(); :}
+									procedure_definition
+							|		axiom simple_declaration
+							;																																									

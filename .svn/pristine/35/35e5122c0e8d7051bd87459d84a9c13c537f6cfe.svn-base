@@ -1,0 +1,9 @@
+digraph Stree {
+a_12 [shape="ellipse", label="StreeFUNCTION\n"];
+a_11 [shape="ellipse", label="StreeSEQ\n"];
+a_10 [shape="ellipse", label="StreeSEQ\n"];
+a_9 [shape="ellipse", label="StreeSEQ\n"];
+a_10 -> a_9[color="red"];
+a_11 -> a_10[color="red"];
+a_12 -> a_11[color="red"];
+}

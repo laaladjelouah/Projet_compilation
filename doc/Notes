@@ -1,0 +1,3 @@
+Il faut créer une classe Entity qui a deux variables : un String représentant le nom de la variable 
+et un Type représentant le type de la variable. Lorsque nous verrons la déclaration d'une variable,
+nous devrons faire current_env.add(new Variable(nom,type));

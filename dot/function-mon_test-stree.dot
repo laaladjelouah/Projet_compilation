@@ -1,0 +1,9 @@
+digraph Stree {
+a_16 [shape="ellipse", label="StreeFUNCTION\n"];
+a_15 [shape="ellipse", label="StreeAFF\n"];
+a_13 [shape="ellipse", label="StreeVAR\na\nstring"];
+a_15 -> a_13[color="red"];
+a_14 [shape="ellipse", label="StreeINT\n9\ninteger"];
+a_15 -> a_14[color="blue"];
+a_16 -> a_15[color="red"];
+}

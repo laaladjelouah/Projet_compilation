@@ -1,0 +1,37 @@
+digraph Stree {
+a_30 [shape="ellipse", label="CLASS"];
+a_29 [shape="ellipse", label="NAMETYPE\nvalue: A"];
+a_30 -> a_29;
+a_27 [shape="ellipse", label="CLASS_BODY"];
+a_26 [shape="ellipse", label="FUNCTIONINSTRUCTION"];
+a_25 [shape="ellipse", label="FUNCTION : test"];
+a_2 [shape="ellipse", label="FLOAT"];
+a_25 -> a_2;
+a_1 [shape="ellipse", label="NAMETYPE\nvalue: a"];
+a_25 -> a_1;
+a_26 -> a_25;
+a_24 [shape="ellipse", label="INSTRUCTION"];
+a_11 [shape="ellipse", label="INSTRUCTION"];
+a_7 [shape="ellipse", label="INSTRUCTION"];
+a_6 [shape="ellipse", label=":"];
+a_5 [shape="ellipse", label="IDENTIFIER\nname: b"];
+a_6 -> a_5;
+a_4 [shape="ellipse", label="INTEGER"];
+a_6 -> a_4;
+a_7 -> a_6;
+a_11 -> a_7;
+a_10 [shape="ellipse", label=":"];
+a_9 [shape="ellipse", label="IDENTIFIER\nname: a"];
+a_10 -> a_9;
+a_8 [shape="ellipse", label="INTEGER"];
+a_10 -> a_8;
+a_11 -> a_10;
+a_24 -> a_11;
+a_23 [shape="ellipse", label="="];
+a_12 [shape="ellipse", label="IDENTIFIER\nname: b"];
+a_23 -> a_12;
+a_24 -> a_23;
+a_26 -> a_24;
+a_27 -> a_26;
+a_30 -> a_27;
+}

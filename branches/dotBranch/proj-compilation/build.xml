@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ======================================================================                                                       
+
+Compilation project     
+This project consist in create a compiler for a given procedural language
+
+                                                             
+====================================================================== -->
+<!-- ================================= -->
+<project name="Lexer project" default="default">
+  <property name="JFlexLib" location="lib" />
+  <property name="CUPLib" location="lib" />
+  <property name="lib.dir" location="lib" />
+  <property name="src.dir" location="src" />
+  <property name="bin.dir" location="bin" />
+  <property name="parser.dir" location="parser" />
+  <property name="lexer.dir" location="lexer" />
+  
+  <description>
+    Compilation of the compiler
+  </description>
+  
+  <!-- ================================= 
+       target: default              
+       ================================= -->
+  <target name="default" depends="build_all" description="Compilation of the compilation project">
+    
+    <java 
+	classname="Main"
+        classpath=".:${bin.dir}:${lib.dir}/java-cup-11a-runtime.jar"
+
+	output="Output.txt">
+      <arg value="try.txt"/>
+    </java>
+
+  </target>
+  
+  <!-- ================================= 
+       target: build_all              
+       ================================= -->
+  <target name="build_all" depends="parser, lexer" description="Compilation of the compilation project">
+    <mkdir dir="${bin.dir}" />
+    <javac 
+    includeantruntime="false"
+	srcdir="${src.dir}"
+	destdir="${bin.dir}" 
+	classpath="${lib.dir}/java-cup-11a-runtime.jar" 
+	debug="on" />
+    <exec executable="/bin/sh">
+        <arg value="-c"/>
+        <arg value="dot -Tps class.dot -o class.ps | ps2pdf class.ps class.pdf"/>
+    </exec>
+  </target>
+  
+  <!-- =================================
+       target: lexer
+       ================================= -->
+  <target name="lexer" description="Compilation of the lexer">
+    
+    <taskdef name="jflex" classname="JFlex.anttask.JFlexTask">
+      <classpath location="${JFlexLib}/JFlex.jar" />
+    </taskdef>
+    
+    <jflex 
+	file="${lexer.dir}/lexer.jflex" 
+	destdir="${src.dir}"/>
+  </target>
+  
+  <!-- ================================= 
+       target: parser              
+       ================================= -->
+  <target name="parser" description="Compilation of the parser">
+    
+    <taskdef name="cup" classname="java_cup.anttask.CUPTask">
+      <classpath location="${CUPLib}/java-cup-11a.jar" />
+    </taskdef>
+    
+    <cup 
+	srcfile="${parser.dir}/parser.cup"
+	destdir="${src.dir}"
+	parser="Parser"
+	symbols="LexerSymbol"
+	/>
+  </target>
+
+  <!-- ================================= 
+       target: clean              
+       ================================= -->	
+	
+  <target name="clean" description="Delete all the generated stuff">
+	<delete file="${src.dir}/Parser.java" />	
+  	<delete file="${src.dir}/Yylex.java" />
+  	<delete file="${src.dir}/LexerSymbol.java" />
+  	<delete file="./Output.txt" />
+  	
+  </target>	
+  
+</project>

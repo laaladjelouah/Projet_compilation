@@ -1,0 +1,440 @@
+import java_cup.runtime.*;
+import java.util.*;
+import java.io.*;
+import types.*;
+import stree.*;
+import env.*;
+
+parser code 
+{:
+		
+		public void syntax_error(Symbol cur_token){
+			int line = cur_token.left+1;
+			int column = cur_token.right+1;
+			
+			System.err.print("Syntax error at line "+line+", column "+column+", ");
+			if(cur_token.value != null){
+				System.err.println("before the character or keyword : " +cur_token.value);
+			}
+		}
+		
+		public void report_fatal_error(String s, Object o) { }
+	
+		public void print_variable_error(String s) {
+			System.err.println(s);
+		}
+:}
+
+action code
+{:
+	Table table = new Table(); 	
+	Table funcTable = new Table();
+	HashMap<String,ArrayList<Type>> func_map = new HashMap<String,ArrayList<Type>>();
+	
+	public void add_function(String s, Type t) {
+		ArrayList<Type> list = func_map.get(s);
+		if (list == null) {
+			ArrayList<Type> tmp = new ArrayList<Type>();
+			tmp.add(t);
+			func_map.put(s,tmp);
+		}
+		else 
+			list.add(t);                    
+	}   
+	
+	public ArrayList<Type> get_list(String s) {
+		ArrayList<Type> list = func_map.get(s);
+	    return list;
+	} 
+	
+:}	
+	
+terminal LPAR, RPAR, LACC, RACC, LCRO, RCRO, CHAPEAU, INTEGER, FLOAT, STRING, BOOL;
+terminal TRUE, FALSE, NULL, STRUCT, IF, ELSE, WHILE, FOREACH, REPEAT, FCT, PROCEDURE;
+terminal MINUS, DIV, MOD, LESS, GREAT, EQUAL, DIFF, LE, GE, SEMIC, PLUS, MULT, OF;
+terminal IN, CLASS, AND_OP, OR_OP,NOT, AFF, COLON, COMMA, RETURN, CHAR; 
+
+terminal Float REAL;
+terminal Integer NB;
+terminal String LIST, INC_OP, DEC_OP;
+terminal String ID, STRING_LITERAL, LETTER;
+
+non terminal translation_unit, list_assignment, boolean_list;
+non terminal int_list, real_list;
+non terminal string_list; 
+non terminal foreach_instruction; 
+non terminal char_list;
+
+non terminal Type simple_type_specifier, struct_specifier, type_specifier, pointer_type, struct_memb, struct_membs;
+non terminal Type arg,arg_list;
+non terminal Stree primary_expression, comparison_expression, logical_expression, expression, arithmetic_expression;
+non terminal Stree constant, boolean, cond, var, func_call,inc_op;
+non terminal Stree instruction, instr_block, instructions;
+non terminal procedure_definition, dec_op;
+non terminal function_definition, axiom, class_definition, simple_declaration;
+
+precedence left COMMA, LCRO;
+precedence left ELSE;
+precedence left AND_OP;
+precedence left OR_OP;
+precedence left LESS, GREAT, LE, GE, EQUAL, DIFF;
+precedence left	MINUS,PLUS;
+precedence left MULT, DIV, MOD;
+precedence left	NOT;
+
+start with translation_unit;
+
+instructions
+							::=	 	instructions:i1 instruction:i2
+									{: RESULT = new StreeSEQ(i1,i2); :}
+							|		instruction:i
+									{: RESULT = i; :}												
+							;
+
+cond 
+							::=		LPAR expression:e RPAR
+									{: RESULT = e; :}
+							;
+
+instruction 				
+							::=		IF cond:c instr_block:i
+									{: RESULT = new StreeIF(c, new StreeTHENELSE(i)); :}
+							|		IF cond:c instr_block:i1 ELSE instr_block:i2
+									{: RESULT = new StreeIF(c, new StreeTHENELSE(i1,i2)); :}
+							|		WHILE cond:c instr_block:i
+									{: RESULT = new StreeWHILE(c,i); :}
+							|		foreach_instruction
+							|		REPEAT instr_block:i WHILE cond:c
+									{: RESULT = new StreeDO(c,i); :}
+							|		RETURN expression:e SEMIC
+									{: RESULT = new StreeRETURN(e); :}	
+							|		RETURN SEMIC	
+									{: RESULT = new StreeRETURN(null); :}
+							|		var:v AFF expression:e SEMIC
+									{: RESULT = new StreeAFF(v,e); :}
+							|		var:v SEMIC
+									{: RESULT = v; :}	
+							|		simple_declaration
+							|		dec_op SEMIC
+							|		inc_op:inc SEMIC
+							;					
+
+var	
+							::=		ID:id 
+									{: 
+										Type t = table.get(id);
+									    if (t == null)	
+									   		System.err.println("Variable " + id + " has not been declared !");	
+									    RESULT = new StreeVAR(id,t);
+									:}
+							|		ID:id LCRO NB:index RCRO
+									{:
+										Type t = table.get(id);
+									    if (t == null)	
+									   		System.err.println("Variable " + id + " has not been declared !");		
+									    RESULT = new StreeVAR(id,t,index);
+									:}		
+							|		func_call:f
+									{: RESULT = f; :}	
+							;
+
+instr_block
+							::=		LACC {: table.push(); :} instructions:i 
+									{: RESULT = i; :}
+									RACC 
+									{: table.pop(); :}
+							|		LACC RACC		
+							; 	
+
+foreach_instruction
+							::=		FOREACH ID IN ID instr_block 
+							|		FOREACH ID IN LCRO list_assignment RCRO instr_block
+							;
+				
+list_assignment
+							::=		int_list
+							|		real_list
+							|		char_list
+							|		string_list
+							|		boolean_list
+							;
+
+inc_op
+							::=		ID:id INC_OP:inc
+									{: 
+										Type tmp = table.get(id);
+										if (tmp == null )
+											System.err.println("Variable " + id + " doesn't exist");								
+									:}
+							|		INC_OP:inc ID:id
+									{: 
+									   Type tmp = table.get(id);
+										if (tmp == null )
+											System.err.println("Variable " + id + " doesn't exist");	
+									:}
+							;
+							
+dec_op
+							::=		ID:id DEC_OP:dec
+									{:
+										Type tmp = table.get(id);
+										if (tmp == null )
+											System.err.println("Variable " + id + " doesn't exist");		 
+									:}
+							|		DEC_OP:dec ID:id
+									{: 
+										Type tmp = table.get(id);
+										if (tmp == null )
+											System.err.println("Variable " + id + " doesn't exist");				
+									:}
+							;		
+
+int_list 			
+							::=		NB
+							|		int_list COMMA NB
+							;
+	
+real_list 			
+							::=		REAL
+							|		real_list COMMA REAL
+							;									
+
+char_list 			
+							::=		LETTER
+							|		char_list COMMA LETTER
+							;									
+
+string_list 			
+							::=		STRING_LITERAL
+							|		string_list COMMA STRING_LITERAL
+							;	
+
+boolean_list 			
+							::=		boolean
+							|		boolean_list COMMA boolean
+							;	
+																					
+simple_declaration          
+							::=		ID:id COLON type_specifier:t SEMIC 	
+									{:  
+									    table.add(id,t); 									 									    
+									:} 	
+							|		type_specifier:t ID:id LCRO NB:size RCRO SEMIC
+									{: 
+										Type type = new Type(EnumType.ARRAY,t,size);
+										table.add(id,type);
+									:}				
+							;
+
+struct_memb
+							::= 	ID:id COLON type_specifier:t SEMIC
+									{: RESULT = new Type(EnumType.TIMES,new Type(EnumType.NAME,id),t); :} 
+							;
+
+struct_membs 
+							::=		struct_membs:d struct_memb:s
+									{: RESULT = new Type(EnumType.TIMES,d,s); :}
+							|		struct_memb:s
+									{: RESULT = s; :}										
+							;
+
+struct_specifier 
+							::=    	STRUCT LACC struct_membs:d RACC 	
+									{: RESULT = d; :}
+							;
+
+type_specifier
+							::=     simple_type_specifier:s 
+									{: RESULT = s; :}
+							| 		struct_specifier:ss
+									{: RESULT = ss; :}
+							|		LIST OF type_specifier:t
+									{: RESULT = new Type(EnumType.LIST,t); :}		
+							;
+
+pointer_type
+							::= 	CHAPEAU type_specifier:t 
+									{: RESULT = new Type(EnumType.POINTER,t); :}
+							;
+
+simple_type_specifier 
+							::=     CHAR    {: RESULT = new Type(EnumType.CHARACTER); :}
+							| 		INTEGER {: RESULT = new Type(EnumType.INTEGER); :}
+							| 		FLOAT   {: RESULT = new Type(EnumType.FLOAT); :}
+							| 		BOOL    {: RESULT = new Type(EnumType.BOOLEAN); :}
+							| 		STRING  {: RESULT = new Type(EnumType.STRING); :}
+							|		pointer_type:p {: RESULT = p; :}							
+							;
+
+expression			
+							::= 	logical_expression:e 
+									{: RESULT = e; :}
+							|		comparison_expression:e
+									{: RESULT = e; :} 
+							|		arithmetic_expression:e
+									{: RESULT = e; :}
+							| 		cond:c
+									{: RESULT = c; :}
+							| 		var:v
+									{: RESULT = v; :}
+							|		primary_expression:e
+									{: RESULT = e; :}
+							|		constant:c
+									{: RESULT = c; :}
+							| 		expression:e1 COMMA expression:e2
+									{: RESULT = new StreeSEQ(e1,e2,new Type(EnumType.TIMES,e1.getType(),e2.getType())); :}									
+							;
+
+comparison_expression
+							::=		expression:e1 LE expression:e2
+									{: RESULT = new StreeLE(e1,e2); :}
+							|		expression:e1 LESS expression:e2
+									{: RESULT = new StreeLT(e1,e2); :}
+							|		expression:e1 GE expression:e2
+									{: RESULT = new StreeGE(e1,e2); :}
+							|		expression:e1 GREAT expression:e2
+									{: RESULT = new StreeGT(e1,e2); :}
+							|		expression:e1 EQUAL expression:e2
+									{: RESULT = new StreeEQ(e1,e2); :}
+							|		expression:e1 DIFF expression:e2	
+									{: RESULT = new StreeDIFF(e1,e2); :}
+							;
+							
+logical_expression
+							::=		expression:e1 OR_OP expression:e2
+									{: RESULT = new StreeOR(e1,e2); :}
+							|		expression:e1 AND_OP expression:e2
+									{: RESULT = new StreeAND(e1,e2); :}
+							|		NOT expression:e
+									{: RESULT = new StreeNEG(e); :}				
+							;
+							
+arithmetic_expression	
+							::=		expression:e1 PLUS expression:e2
+									{: RESULT = new StreePLUS(e1,e2); :}
+							|		expression:e1 MINUS expression:e2
+									{: RESULT = new StreeMINUS(e1,e2); :}
+							|		expression:e1 DIV expression:e2
+									{: RESULT = new StreeDIV(e1,e2); :}
+							|		expression:e1 MULT expression:e2
+									{: RESULT = new StreeMUL(e1,e2); :}
+							|		expression:e1 MOD expression:e2	
+									{: RESULT = new StreeMOD(e1,e2); :}
+							|		MINUS expression:e
+									{: RESULT = new StreeMINUS_U(e); :}		
+							;						
+
+boolean
+							::= 	TRUE
+							|		FALSE
+							;
+
+constant
+							::= 	boolean:b
+							|		NULL
+							;					
+																							
+primary_expression			
+							::=		NB:nb
+									{: RESULT = new StreeINT(nb); :}
+							|		REAL:r
+									{: RESULT = new StreeFLOAT(r); :}
+							|		LETTER:l
+									{: RESULT = new StreeCHARACTER(l); :}
+							|		STRING_LITERAL:s
+									{: RESULT = new StreeSTRING(s); :}		
+							;			 			
+							
+func_call 
+							::=		ID:id LPAR expression:e RPAR
+									{: 
+										ArrayList<Type> list = func_map.get(id);
+										if (list == null) {
+											System.err.println("Function " + id + " doesn't exist");
+											RESULT = null;
+										}
+										else {
+											RESULT = new StreeFUNCCALL(e,list,id);										
+										}										
+									:}   
+							|		ID:id LPAR RPAR 
+									{:
+										Type t = table.get(id);
+										if (t == null) 
+											System.err.println("Function doesn't exist");
+										else
+											RESULT = new StreeFUNCCALL(id,t);	
+									:}
+							;
+function_definition
+							::=		FCT ID:id LPAR
+									{: table.push(); :}
+									arg_list:a RPAR COLON type_specifier:t 
+									{:
+										Type tmp = new Type(EnumType.FUNCTION,a,t, id);
+									  	add_function(id,tmp);	
+									 :}
+									LACC instructions:i1 
+									{:
+										Type tmp = new Type(EnumType.FUNCTION,t,a, id);
+										StreeFUNCTION streefunction = new StreeFUNCTION(id,tmp,i1);
+										if (streefunction != null){
+											streefunction.toDot("dot/function-"+id+"-stree.dot");
+											}
+									:} RACC
+									{:	table.pop(); :}
+							|		FCT ID:id LPAR RPAR COLON simple_type_specifier:t instr_block:i1
+									{:
+										Type tmp = new Type(EnumType.FUNCTION,null,t, id);
+										table.add(id,tmp);
+									:}
+							;
+					
+procedure_definition
+							::=		PROCEDURE ID:id LPAR
+									{: table.push(); :}
+									arg_list:a RPAR
+									{:
+										Type tmp = new Type(EnumType.FUNCTION,a,null, id);
+										add_function(id,tmp);
+									:}
+									 LACC instructions:i RACC
+									{: 
+										table.pop(); 
+									:}
+							|		PROCEDURE ID:id LPAR RPAR instr_block:i
+									{: 
+										Type tmp = new Type(EnumType.FUNCTION,null,null, id);
+									    table.add(id,tmp);
+									:}							
+							;
+
+arg_list 			
+							::= 	arg:a
+									{: RESULT = a; :}
+							|		arg_list:al COMMA arg:a
+									{: RESULT = new Type(EnumType.TIMES,al,a); :}
+							;	
+							
+arg
+							::=		ID:id COLON type_specifier:t
+									{: 
+									   	RESULT = t;
+										table.add(id,t); 
+									:}
+							;	
+							
+class_definition
+							::= 	CLASS ID:id LACC axiom:a RACC 						
+							;
+
+translation_unit  			::=     class_definition:c 
+				            |      	axiom:a 
+				            ;
+
+axiom 
+                			::=		
+                			|		axiom:a function_definition:f               					
+                			|		axiom procedure_definition:p_def 
+                			|		axiom simple_declaration:sd 
+                			;																																		
